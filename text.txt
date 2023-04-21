@@ -1,0 +1,41 @@
+import sys
+from awsglue.transforms import *
+from awsglue.utils import getResolvedOptions
+from pyspark.context import SparkContext
+from awsglue.context import GlueContext
+from awsglue.dynamicframe import DynamicFrame
+
+args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
+
+# Create a DynamicFrame from the gz file in S3
+input_path = "s3://bucket_name/path/to/gz_file.gz"
+input_dynamic_frame = glueContext.create_dynamic_frame_from_options(
+    connection_type="s3",
+    format="csv",
+    format_options={"compression": "gzip", "delimiter": ","},
+    connection_options={"paths": [input_path]},
+    transformation_ctx="input_dynamic_frame"
+)
+
+# Convert the DynamicFrame to a DataFrame
+input_dataframe = input_dynamic_frame.toDF()
+
+# Write the DataFrame as a CSV file to S3
+output_path = "s3://bucket_name/path/to/csv_file.csv"
+input_dataframe.write.option("header", "true").csv(output_path)
+
+# Create a DynamicFrame from the CSV file in S3
+output_dynamic_frame = glueContext.create_dynamic_frame_from_options(
+    connection_type="s3",
+    format="csv",
+    format_options={"delimiter": ","},
+    connection_options={"paths": [output_path]},
+    transformation_ctx="output_dynamic_frame"
+)
+
+# Print the first 10 rows of the output DynamicFrame
+output_dynamic_frame.toDF().show(10)
